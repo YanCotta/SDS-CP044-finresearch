@@ -1,16 +1,16 @@
 # Contains all libraries that are needed for this project
 
 # Data manipulation and analysis
-pandas
-numpy
+# pandas
+# numpy
 
 # Visualization
-matplotlib
-seaborn
-plotly
+# matplotlib
+# seaborn
+# plotly
 
 # Machine learning
-scikit-learn
+# scikit-learn
 # xgboost
 # lightgbm
 # catboost
@@ -21,12 +21,18 @@ scikit-learn
 # torch
 # torchvision
 
+# Agentic AI frameworks
+openai
+openai-agents
+crewai
+
 # Data processing
 # scipy
 
 # Jupyter support
 jupyter
 notebook
+ipykernel
 
 # Model evaluation
 # statsmodels
