@@ -197,8 +197,7 @@ A detailed scope will be created inside **advanced/README.md** next.
 * **Financial/Market Data**:
 
   * Yahoo Finance (yfinance)
-  * Alpha Vantage
-  * FinancialModelingPrep
+  * [Financial Datasets API](https://docs.financialdatasets.ai/introduction)
 
 ### Tools
 
