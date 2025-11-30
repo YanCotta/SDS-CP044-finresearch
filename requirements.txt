@@ -1,45 +1,11 @@
-# Contains all libraries that are needed for this project
+# Core Agent Framework
+crewai==0.80.0
+langchain_openai
 
-# Data manipulation and analysis
-# pandas
-# numpy
-
-# Visualization
-# matplotlib
-# seaborn
-# plotly
-
-# Machine learning
-# scikit-learn
-# xgboost
-# lightgbm
-# catboost
-
-# Deep learning
-# tensorflow
-# keras
-# torch
-# torchvision
-
-# Agentic AI frameworks
-openai
-openai-agents
-crewai
-
-# Data processing
-# scipy
-
-# Jupyter support
-jupyter
-notebook
-ipykernel
-
-# Model evaluation
-# statsmodels
+# Tools & APIs
+yfinance              # For stock data
+duckduckgo-search     # Free search tool (good for demos vs. paid Tavily)
+python-dotenv         # For managing API keys
 
 # Utilities
-# tqdm
-
-# Optional: Data connectors
-# sqlalchemy
-# openpyxl
+ipykernel             # If you want to run this in notebooks later
