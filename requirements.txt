@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # LangChain and LangGraph
 langchain==0.1.0
 langchain-community==0.0.13
@@ -25,3 +26,39 @@ python-dotenv==1.0.0
 pytest==7.4.3
 pytest-asyncio==0.21.1
 hypothesis==6.92.0
+=======
+# =============================================================================
+# FinResearch AI - Dependencies
+# =============================================================================
+# This file contains all dependencies needed for the various framework demos.
+# Install with: pip install -r requirements.txt
+
+# -----------------------------------------------------------------------------
+# CORE AGENT FRAMEWORKS
+# -----------------------------------------------------------------------------
+# CrewAI - Multi-agent orchestration framework (used in original demos)
+crewai==0.80.0
+
+# OpenAI SDK - Direct API access with function calling & Assistants API
+openai>=1.40.0
+
+# LangChain Ecosystem - Modular agent framework
+langchain>=0.2.0
+langchain_openai>=0.1.0
+langchain_community>=0.2.0
+langgraph>=0.2.0          # For advanced stateful multi-agent workflows
+
+# -----------------------------------------------------------------------------
+# FINANCIAL DATA & TOOLS
+# -----------------------------------------------------------------------------
+yfinance                  # Yahoo Finance API wrapper (free, no key required)
+duckduckgo-search         # Free search tool (good for demos vs. paid Tavily)
+
+# -----------------------------------------------------------------------------
+# UTILITIES
+# -----------------------------------------------------------------------------
+python-dotenv             # For managing API keys securely via .env files
+pydantic>=2.0.0          # For structured outputs and data validation
+rich                      # Beautiful terminal output for demos
+ipykernel                 # Jupyter notebook support
+>>>>>>> 04828e581a8c65b09c908e0cd47fff5063dd982d
