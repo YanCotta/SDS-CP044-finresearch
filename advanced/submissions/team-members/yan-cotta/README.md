@@ -58,9 +58,11 @@ A production-grade, hierarchical multi-agent system for automated financial rese
 ```
 yan-cotta/
 ├── main.py                 # CLI entry point
+├── verify_full_run.py      # End-to-end verification script
 ├── pyproject.toml          # Project metadata and dependencies
 ├── Dockerfile              # Container configuration
 ├── .dockerignore           # Docker build exclusions
+├── .gitignore              # Git exclusions
 ├── README.md               # This documentation
 │
 ├── src/
@@ -79,7 +81,7 @@ yan-cotta/
 │   │   ├── manager.py      # Manager agent (orchestrator)
 │   │   ├── researcher.py   # Researcher agent (qualitative)
 │   │   ├── analyst.py      # Analyst agent (quantitative)
-│   │   └── reporter.py     # Reporter agent (synthesis)
+│   │   └── reporter.py     # Reporter agent (synthesis + ReportOutput model)
 │   │
 │   └── tools/
 │       ├── __init__.py
@@ -87,6 +89,9 @@ yan-cotta/
 │       ├── financial_data.py   # Yahoo Finance wrapper
 │       ├── news_search.py      # DuckDuckGo wrapper
 │       └── memory.py           # ChromaDB memory tool
+│
+├── outputs/                # Generated reports (gitignored)
+│   └── .gitkeep
 │
 └── tests/
     ├── __init__.py
@@ -285,10 +290,10 @@ User                Manager             Researcher          Analyst             
 
 ## Output Example
 
-Reports are saved to `./reports/` with the format:
+Reports are saved to `./outputs/` with the format:
 
 ```
-report_AAPL_20241212_143052.md
+AAPL_report.md
 ```
 
 Sample report structure:
@@ -296,26 +301,57 @@ Sample report structure:
 ```markdown
 # Investment Research Report: Apple Inc (AAPL)
 
-Generated: 2024-12-12 14:30:52 UTC
+**Generated:** 2024-12-17 14:30:52
+
+---
 
 ## Executive Summary
 ...
 
-## Recent Developments
+## Market Data & Financial Metrics
 ...
 
-## Financial Analysis
+## News Analysis & Recent Developments
 ...
 
-## Investment Considerations
+## Risk Assessment
 ...
 
-## Risk Factors
-...
+---
 
 ## Disclaimer
-This report is for informational purposes only...
+*This report is for informational purposes only...*
 ```
+
+---
+
+## Verification Script
+
+Run the end-to-end verification to test the complete workflow:
+
+```bash
+# Run full verification for NVDA
+python verify_full_run.py
+
+# Test with custom ticker
+python verify_full_run.py --ticker AAPL
+
+# Dry run (validate setup only)
+python verify_full_run.py --dry-run
+
+# Verbose output
+python verify_full_run.py -v
+```
+
+The verification script checks:
+1. All imports resolve correctly
+2. Configuration files are valid
+3. Environment variables are set
+4. ChromaDB memory tool works
+5. All agents can be created
+6. Output directory is writable
+7. Crew executes successfully
+8. Report is generated with required sections
 
 ---
 
