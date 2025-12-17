@@ -5,6 +5,7 @@ This module provides centralized configuration using Pydantic for validation
 and environment variable loading.
 """
 
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -75,8 +76,31 @@ class Settings(BaseSettings):
     
     # Output Configuration
     output_dir: str = Field(
-        default="./reports",
-        description="Directory for generated reports"
+        default="./outputs",
+        description="Directory for generated reports and artifacts"
+    )
+    
+    # Report Quality Settings
+    min_executive_summary_length: int = Field(
+        default=100,
+        ge=50,
+        le=500,
+        description="Minimum character length for executive summary"
+    )
+    min_section_length: int = Field(
+        default=50,
+        ge=20,
+        le=200,
+        description="Minimum character length for report sections"
+    )
+    required_report_sections: list[str] = Field(
+        default=[
+            "Executive Summary",
+            "Market Data",
+            "News Analysis",
+            "Risk Assessment",
+        ],
+        description="Required section headers in final report"
     )
     
     # Logging
@@ -87,6 +111,10 @@ class Settings(BaseSettings):
     log_file: Optional[str] = Field(
         default=None,
         description="Log file path (None for stdout only)"
+    )
+    log_chain_of_thought: bool = Field(
+        default=True,
+        description="Whether to log agent chain-of-thought reasoning"
     )
     
     # Request Configuration
@@ -117,10 +145,72 @@ class Settings(BaseSettings):
     
     @property
     def output_path(self) -> Path:
-        """Get the output directory as a Path object."""
+        """Get the output directory as a Path object, creating if needed."""
         path = Path(self.output_dir)
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+
+def setup_logging(
+    level: Optional[str] = None,
+    log_file: Optional[str] = None,
+    log_chain_of_thought: bool = True
+) -> logging.Logger:
+    """
+    Configure application logging with chain-of-thought support.
+    
+    Args:
+        level: Logging level (DEBUG, INFO, WARNING, ERROR)
+        log_file: Optional file path for logging output
+        log_chain_of_thought: Whether to enable verbose agent logging
+        
+    Returns:
+        Configured root logger
+    """
+    settings = get_settings()
+    level = level or settings.log_level
+    log_file = log_file or settings.log_file
+    
+    log_format = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+    date_format = "%Y-%m-%d %H:%M:%S"
+    
+    handlers: list[logging.Handler] = []
+    handlers.append(logging.StreamHandler())
+    
+    if log_file:
+        handlers.append(logging.FileHandler(log_file))
+    
+    logging.basicConfig(
+        level=getattr(logging, level.upper()),
+        format=log_format,
+        datefmt=date_format,
+        handlers=handlers,
+        force=True
+    )
+    
+    # Configure third-party library logging
+    if not log_chain_of_thought:
+        logging.getLogger("crewai").setLevel(logging.WARNING)
+        logging.getLogger("langchain").setLevel(logging.WARNING)
+    
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
+    logging.getLogger("chromadb").setLevel(logging.WARNING)
+    
+    return logging.getLogger()
+
+
+def get_logger(name: str) -> logging.Logger:
+    """
+    Get a named logger for a module.
+    
+    Args:
+        name: Logger name (typically __name__)
+        
+    Returns:
+        Configured logger instance
+    """
+    return logging.getLogger(name)
 
 
 @lru_cache()
