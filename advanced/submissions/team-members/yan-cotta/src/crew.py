@@ -172,6 +172,9 @@ class FinResearchCrew:
         """
         Create all tasks for the research workflow.
         
+        Research and Analysis tasks run in parallel (async_execution: true).
+        Report task waits for both via context dependency.
+        
         Returns:
             List of configured Task instances
         """
@@ -180,32 +183,37 @@ class FinResearchCrew:
         analyst = self._analyst_factory.create()
         reporter = self._reporter_factory.create()
         
-        # Research Task
+        # Research Task (runs async/parallel)
         research_config = self._tasks_config['research_task']
+        async_research = research_config.get('async_execution', False)
         research_task = Task(
             description=self._format_task_description(research_config['description']),
             expected_output=research_config['expected_output'].strip(),
-            agent=researcher
+            agent=researcher,
+            async_execution=async_research
         )
         
-        # Analysis Task
+        # Analysis Task (runs async/parallel)
         analysis_config = self._tasks_config['analysis_task']
+        async_analysis = analysis_config.get('async_execution', False)
         analysis_task = Task(
             description=self._format_task_description(analysis_config['description']),
             expected_output=analysis_config['expected_output'].strip(),
-            agent=analyst
+            agent=analyst,
+            async_execution=async_analysis
         )
         
-        # Report Task (depends on research and analysis)
+        # Report Task (waits for research and analysis via context)
         report_config = self._tasks_config['report_task']
         report_task = Task(
             description=self._format_task_description(report_config['description']),
             expected_output=report_config['expected_output'].strip(),
             agent=reporter,
-            context=[research_task, analysis_task]  # Gets output from both
+            context=[research_task, analysis_task]  # Waits for both async tasks
         )
         
-        logger.info("Created 3 tasks: research, analysis, report")
+        parallel_mode = "parallel" if (async_research or async_analysis) else "sequential"
+        logger.info(f"Created 3 tasks: research, analysis, report ({parallel_mode} mode)")
         return [research_task, analysis_task, report_task]
     
     def _create_crew(self) -> Crew:
