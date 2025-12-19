@@ -21,6 +21,9 @@ def route_research(state: AgentState):
     agents = state.get("agents_to_run", [])
     if not agents:
         return ["analyst"]
+    
+    # LangGraph conditional edge with a list of strings will trigger parallel nodes
+    # if those nodes are defined in the mapping.
     return agents
 
 def create_graph():

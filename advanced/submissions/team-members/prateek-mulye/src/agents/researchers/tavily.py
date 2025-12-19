@@ -29,7 +29,8 @@ class TavilyAgent:
         
         # 1. Search
         try:
-            results = self.tool.invoke(f"latest news (past 24 hours) and market sentiment for {ticker} stock and the company")
+            # Removed the specific 'past 24 hours' promise from query string
+            results = self.tool.invoke(f"latest company news and stock market sentiment for {ticker}")
         except Exception:
             results = []
 

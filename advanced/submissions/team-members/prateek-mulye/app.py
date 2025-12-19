@@ -8,22 +8,59 @@ This application acts as a main entry point for the user interface.
 import time
 import json
 import re
+import logging
+import os
+from typing import Dict, Tuple
 import gradio as gr
 import yfinance as yf
 from src.graph import create_graph
 import plotly.graph_objects as go
 
+# --- Logging Setup ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("FinResearchAI")
+
 # --- Security & Caching ---
-CACHE_DURATION = 300  # 5 minutes
-RATE_LIMIT_BLOCK = 1800  # 30 minutes
-MAX_REQUESTS_PER_WINDOW = 5  # 5 requests before block
-RATE_LIMIT_WINDOW = 3600 # 1 hour
+CACHE_DURATION = int(os.getenv("CACHE_DURATION", 300))  # 5 minutes default
+RATE_LIMIT_BLOCK = int(os.getenv("RATE_LIMIT_BLOCK", 1800))  # 30 minutes
+MAX_REQUESTS_PER_WINDOW = int(os.getenv("MAX_REQUESTS_PER_WINDOW", 5))
+RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", 3600)) # 1 hour
 
 # Simple in-memory storage
 # Cache key: (ticker, mode) -> (timestamp, data)
-response_cache = {}
+response_cache: Dict[Tuple[str, str], Tuple[float, dict]] = {}
 # Rate Limit: {client_ip: {"count": int, "window_start": timestamp, "blocked_until": timestamp}}
-rate_limit_db = {}
+rate_limit_db: Dict[str, dict] = {}
+
+def validate_env():
+    """Validates required environment variables at startup."""
+    required = ["PINECONE_API_KEY", "OPENAI_API_KEY", "TAVILY_API_KEY"]
+    missing = [env for env in required if not os.getenv(env)]
+    if missing:
+        raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+
+def cleanup_expired_data():
+    """Removes expired entries from response_cache and rate_limit_db to prevent memory growth."""
+    now = time.time()
+    
+    # Cleanup Cache
+    expired_cache = [k for k, v in response_cache.items() if now - v[0] > CACHE_DURATION]
+    for k in expired_cache:
+        del response_cache[k]
+        
+    # Cleanup Rate Limit DB (entries older than window + block)
+    expired_ips = [
+        ip for ip, data in rate_limit_db.items() 
+        if now - data["window_start"] > RATE_LIMIT_WINDOW + RATE_LIMIT_BLOCK
+    ]
+    for ip in expired_ips:
+        del rate_limit_db[ip]
+
+    if expired_cache or expired_ips:
+        logger.info(f"Cleaned up {len(expired_cache)} cache entries and {len(expired_ips)} rate limit entries.")
 
 # --- Funny Loading Experience ---
 FUNNY_PHRASES = [
@@ -70,6 +107,7 @@ def check_rate_limit(request: gr.Request):
     """
     Blocks client if they exceed MAX_REQUESTS_PER_WINDOW.
     """
+    cleanup_expired_data() # Opportunistic cleanup
     client_ip = get_client_ip(request)
     now = time.time()
     
@@ -80,6 +118,7 @@ def check_rate_limit(request: gr.Request):
     
     if user_data["blocked_until"] > now:
         remaining = int((user_data["blocked_until"] - now) / 60)
+        logger.warning(f"Blocked request from {client_ip}. Remaining: {remaining}m")
         raise gr.Error(f"Rate limit exceeded. Try again in {remaining} minutes.")
         
     if now - user_data["window_start"] > RATE_LIMIT_WINDOW:
@@ -89,6 +128,7 @@ def check_rate_limit(request: gr.Request):
     user_data["count"] += 1
     if user_data["count"] > MAX_REQUESTS_PER_WINDOW:
         user_data["blocked_until"] = now + RATE_LIMIT_BLOCK
+        logger.warning(f"Rate limit tripped for {client_ip}. Blocked for {RATE_LIMIT_BLOCK/60}m")
         raise gr.Error("Rate limit exceeded. You are blocked for 30 minutes.")
 
 def parse_report_sections(report_text):
@@ -106,13 +146,13 @@ def parse_report_sections(report_text):
     }
     
     patterns = {
-        "Executive Summary": r"## 1\. Executive Summary\n(.*?)\n##",
-        "Analyst Verdict": r"## 2\. Analyst Verdict\n(.*?)\n##",
-        "Company Snapshot": r"## 3\. Company Snapshot\n(.*?)\n##",
-        "Financial Indicators": r"## 4\. Key Financial Indicators\n(.*?)\n##",
-        "News & Sentiment": r"## 6\. Recent News & Sentiment\n(.*?)\n##",
-        "Risks & Opportunities": r"## 7\. Risks & Opportunities\n(.*?)\n##",
-        "Final Perspective": r"## 8\. Final Perspective\n(.*?)$"
+        "Executive Summary": r"(?:##\s*\d*\.?\s*Executive Summary|Executive Summary)\n(.*?)(?=\n##|$)",
+        "Analyst Verdict": r"(?:##\s*\d*\.?\s*Analyst Verdict|Analyst Verdict)\n(.*?)(?=\n##|$)",
+        "Company Snapshot": r"(?:##\s*\d*\.?\s*Company Snapshot|Company Snapshot)\n(.*?)(?=\n##|$)",
+        "Financial Indicators": r"(?:##\s*\d*\.?\s*Key Financial Indicators|Financial Indicators)\n(.*?)(?=\n##|$)",
+        "News & Sentiment": r"(?:##\s*\d*\.?\s*Recent News & Sentiment|News & Sentiment)\n(.*?)(?=\n##|$)",
+        "Risks & Opportunities": r"(?:##\s*\d*\.?\s*Risks & Opportunities|Risks & Opportunities)\n(.*?)(?=\n##|$)",
+        "Final Perspective": r"(?:##\s*\d*\.?\s*Final Perspective|Final Perspective)\n(.*?)$"
     }
     
     for key, pattern in patterns.items():
@@ -128,11 +168,11 @@ def run_research(ticker, mode, request: gr.Request):
     """
     check_rate_limit(request) # Security Check
     
+    # Sanitization & Validation
     ticker = ticker.upper().strip()
-    
-    # Validation Guardrail
-    if not ticker:
-         raise gr.Error("Please enter a ticker symbol.")
+    if not ticker or not re.match(r"^[A-Z0-9.\-]{1,10}$", ticker):
+         logger.warning(f"Invalid ticker input attempt: {ticker}")
+         raise gr.Error("Please enter a valid ticker symbol (alphanumeric, max 10 chars).")
          
     try:
         tick = yf.Ticker(ticker)
@@ -141,7 +181,8 @@ def run_research(ticker, mode, request: gr.Request):
         if hist.empty:
              raise ValueError("No data found")
     except Exception:
-        raise gr.Error(f"Invalid Ticker: {ticker}. Please enter a valid symbol.")
+        logger.info(f"Ticker validation failed for: {ticker}")
+        raise gr.Error(f"Invalid Ticker or No Data: {ticker}. Please enter a valid symbol.")
 
     cache_key = (ticker, mode)
     now = time.time()
@@ -412,4 +453,8 @@ with gr.Blocks(title="FinResearch AI", theme=gr.themes.Soft(), css=PULSE_CSS + "
     )
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    validate_env()
+    server_name = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0")
+    server_port = int(os.getenv("GRADIO_SERVER_PORT", 7860))
+    logger.info(f"Starting FinResearch AI on {server_name}:{server_port}")
+    demo.launch(server_name=server_name, server_port=server_port)

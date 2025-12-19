@@ -25,49 +25,42 @@ class TradingViewAgent:
         ticker = state.get("ticker")
         
         # 1. Fetch Technicals
-        try:
-            handler = TA_Handler(
-                symbol=ticker,
-                screener="america",
-                exchange="NASDAQ",
-                interval=Interval.INTERVAL_1_DAY
-            )
-            analysis = handler.get_analysis()
-            
-            technicals = {
-                "summary": analysis.summary,
-                "indicators": {
-                    "RSI": analysis.indicators.get("RSI"),
-                    "MACD": analysis.indicators.get("MACD.macd"),
-                    "SMA20": analysis.indicators.get("SMA20"),
-                    "EMA20": analysis.indicators.get("EMA20"),
-                    "Open": analysis.indicators.get("open"),
-                    "Close": analysis.indicators.get("close")
-                }
-            }
-            technicals_json = json.dumps(technicals, indent=2)
-            
-        except Exception:
+        technicals = {}
+        exchanges = ["NASDAQ", "NYSE", "AMEX"]
+        success = False
+
+        for exchange in exchanges:
             try:
-                # Try NYSE fallback
                 handler = TA_Handler(
                     symbol=ticker,
                     screener="america",
-                    exchange="NYSE",
+                    exchange=exchange,
                     interval=Interval.INTERVAL_1_DAY
                 )
                 analysis = handler.get_analysis()
+                
                 technicals = {
                     "summary": analysis.summary,
                     "indicators": {
                         "RSI": analysis.indicators.get("RSI"),
                         "MACD": analysis.indicators.get("MACD.macd"),
-                        "SMA20": analysis.indicators.get("SMA20")
-                    }
+                        "SMA20": analysis.indicators.get("SMA20"),
+                        "EMA20": analysis.indicators.get("EMA20"),
+                        "Open": analysis.indicators.get("open"),
+                        "Close": analysis.indicators.get("close")
+                    },
+                    "exchange": exchange
                 }
-                technicals_json = json.dumps(technicals, indent=2)
+                success = True
+                break
             except Exception:
-                technicals_json = "{}"
+                # Silently try next exchange, but we could log here if needed
+                continue
+        
+        if not success:
+            technicals = {"error": "All exchange lookups failed for TradingView"}
+
+        technicals_json = json.dumps(technicals, indent=2)
 
         # 2. Store in Pinecone
         doc_raw = Document(

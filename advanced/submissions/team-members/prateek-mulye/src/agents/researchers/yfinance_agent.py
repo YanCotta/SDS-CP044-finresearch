@@ -44,8 +44,9 @@ class YFinanceAgent:
             }
             metrics_json = json.dumps(metrics, indent=2)
         except Exception as e:
-            print(f"YFinance fetch failed: {e}")
-            metrics_json = "{}"
+            # We explicitly store an error indicator for the Analyst
+            metrics_ref = {"error": f"YFinance fetch failed: {str(e)}", "status": "failed"}
+            metrics_json = json.dumps(metrics_ref, indent=2)
 
         # 2. Store in Pinecone
         # Store raw data for Analyst to use precisely

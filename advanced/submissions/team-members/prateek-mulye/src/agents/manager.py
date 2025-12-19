@@ -11,6 +11,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from ..state import AgentState
 from ..memory import VectorMemory
 
+# Thresholds for cache freshness in minutes
+FRESH_THRESHOLD_MINS = 5
+STALE_THRESHOLD_MINS = 60
+
 class ManagerAgent:
     """
     The Manager Agent decides the execution plan based on cache freshness and user intent.
@@ -29,7 +33,10 @@ class ManagerAgent:
         for r in results:
             ts = r.metadata.get("timestamp")
             if ts is not None:
-                timestamps.append(float(ts))
+                try:
+                    timestamps.append(float(ts))
+                except (ValueError, TypeError):
+                    continue
         
         if timestamps:
              max_ts = max(timestamps)
@@ -54,8 +61,8 @@ class ManagerAgent:
             "technicals": self._get_recency(ticker, "technicals")
         }
         
-        # Immediate shortcut: If full verdict is fresh (< 5 mins), skip all.
-        if inventory["final_verdict"] and inventory["final_verdict"] < 5:
+        # Immediate shortcut: If full verdict is fresh, skip all.
+        if inventory["final_verdict"] is not None and inventory["final_verdict"] < FRESH_THRESHOLD_MINS:
             print("Fresh final verdict found. Skipping all research.")
             return {
                 "messages": [HumanMessage(content="Using fresh cached research.")],
@@ -65,8 +72,8 @@ class ManagerAgent:
         # 2. Build Inventory Context for LLM
         def format_status(mins):
             if mins is None: return "MISSING"
-            if mins < 5: return f"FRESH ({mins:.1f}m old)"
-            if mins < 60: return f"STALE ({mins:.1f}m old)"
+            if mins < FRESH_THRESHOLD_MINS: return f"FRESH ({mins:.1f}m old)"
+            if mins < STALE_THRESHOLD_MINS: return f"STALE ({mins:.1f}m old)"
             return f"EXPIRED ({mins/60:.1f}h old)"
 
         audit_log = "\n".join([f"- {k}: {format_status(v)}" for k, v in inventory.items()])
@@ -82,7 +89,7 @@ class ManagerAgent:
         - 'tradingview_researcher': Technical Indicators (RSI, MACD).
         
         Rules:
-        1. Only run an agent if its data is MISSING, STALE (> 5m), or EXPIRED.
+        1. Only run an agent if its data is MISSING, STALE (> {FRESH_THRESHOLD_MINS}m), or EXPIRED.
         2. If multiple data types are needed for a comprehensive analysis, enable all necessary agents.
         3. Be efficient: Do not run agents for data that is already FRESH.
         
@@ -104,7 +111,12 @@ class ManagerAgent:
         ])
         
         chain = prompt | self.llm
-        response = chain.invoke({"ticker": ticker, "mode": mode, "audit_log": audit_log})
+        response = chain.invoke({
+            "ticker": ticker, 
+            "mode": mode, 
+            "audit_log": audit_log,
+            "FRESH_THRESHOLD_MINS": FRESH_THRESHOLD_MINS
+        })
         
         try:
             content = response.content.replace("```json", "").replace("```", "").strip()
