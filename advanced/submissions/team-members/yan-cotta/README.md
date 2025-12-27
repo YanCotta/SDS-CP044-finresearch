@@ -1,3 +1,14 @@
+---
+title: FinResearch AI
+emoji: 📈
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+license: mit
+short_description: Multi-Agent Financial Research System
+---
+
 # FinResearch AI - Advanced Track
 
 ## Multi-Agent Financial Research System
