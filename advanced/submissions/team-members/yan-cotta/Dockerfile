@@ -60,7 +60,7 @@ COPY pyproject.toml ./
 # Install poetry and export requirements, then install with pip
 RUN pip install poetry \
     && poetry config virtualenvs.create false \
-    && poetry install --only main --no-interaction --no-ansi \
+    && poetry install --only main --no-interaction --no-ansi --no-root \
     && pip uninstall -y poetry
 
 # Copy backend source code
