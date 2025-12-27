@@ -308,7 +308,33 @@ class FinResearchCrew:
             logger.info("Kicking off crew execution...")
             result = self._crew.kickoff()
             
-            raw_output = str(result)
+            # Extract the actual report content from CrewAI result
+            # The result can be a CrewOutput object with various attributes
+            raw_output = ""
+            
+            # Try to get the best output from CrewAI result
+            if hasattr(result, 'raw'):
+                raw_output = str(result.raw)
+                logger.info("Using result.raw for output")
+            elif hasattr(result, 'output'):
+                raw_output = str(result.output)
+                logger.info("Using result.output for output")
+            elif hasattr(result, 'tasks_output') and result.tasks_output:
+                # Get the last task's output (report task)
+                last_task_output = result.tasks_output[-1]
+                if hasattr(last_task_output, 'raw'):
+                    raw_output = str(last_task_output.raw)
+                elif hasattr(last_task_output, 'output'):
+                    raw_output = str(last_task_output.output)
+                else:
+                    raw_output = str(last_task_output)
+                logger.info("Using last task output for report")
+            else:
+                raw_output = str(result)
+                logger.info("Using str(result) fallback for output")
+            
+            # Log output length for debugging
+            logger.info(f"Raw output length: {len(raw_output)} characters")
             
             # Validate the output
             is_valid, issues = self._validate_report(raw_output)
@@ -389,6 +415,52 @@ class SequentialFinResearchCrew(FinResearchCrew):
     - Simpler, more predictable execution is preferred
     - Debugging individual agent behavior
     """
+    
+    def _create_tasks(self) -> list[Task]:
+        """
+        Create all tasks for sequential workflow.
+        
+        Overrides parent to disable async_execution for sequential process.
+        Tasks run one at a time: Research -> Analysis -> Report
+        
+        Returns:
+            List of configured Task instances
+        """
+        # Get agents
+        researcher = self._researcher_factory.create()
+        analyst = self._analyst_factory.create()
+        reporter = self._reporter_factory.create()
+        
+        # Research Task (runs first, no async)
+        research_config = self._tasks_config['research_task']
+        research_task = Task(
+            description=self._format_task_description(research_config['description']),
+            expected_output=research_config['expected_output'].strip(),
+            agent=researcher,
+            async_execution=False  # Force sequential
+        )
+        
+        # Analysis Task (runs second, no async)
+        analysis_config = self._tasks_config['analysis_task']
+        analysis_task = Task(
+            description=self._format_task_description(analysis_config['description']),
+            expected_output=analysis_config['expected_output'].strip(),
+            agent=analyst,
+            async_execution=False  # Force sequential
+        )
+        
+        # Report Task (runs last, uses context from previous tasks)
+        report_config = self._tasks_config['report_task']
+        report_task = Task(
+            description=self._format_task_description(report_config['description']),
+            expected_output=report_config['expected_output'].strip(),
+            agent=reporter,
+            context=[research_task, analysis_task],  # Gets output from previous tasks
+            async_execution=False
+        )
+        
+        logger.info("Created 3 tasks for sequential execution: research -> analysis -> report")
+        return [research_task, analysis_task, report_task]
     
     def _create_crew(self) -> Crew:
         """Create crew with sequential process."""
